@@ -60,19 +60,30 @@ STOPWORDS = {"what", "is", "a", "an", "the", "are", "of", "in", "to", "and", "fo
 
 def search_documents(query, documents):
     """
-    Very simple keyword search.
-    Splits the query into words (ignoring common stopwords) and checks
-    how many of those words show up in each document's title and text.
-    Returns only documents that matched at least one word.
-    """
-    query_words = [w.strip("?.,!") for w in query.lower().split()]
-    query_words = [w for w in query_words if w and w not in STOPWORDS]
-    matches = []
+    STEP 1: RETRIEVAL.
 
+    This is the "R" in RAG. Before we generate anything, we need to find
+    documents that might actually help answer the question.
+
+    Here we do it the simplest way possible: break the query into words,
+    throw away the boring ones (stopwords), and count how many of the
+    remaining words show up in each document. This is NOT how production
+    RAG systems work (they use embeddings + vector search to match on
+    *meaning*, not just exact words) but it's the easiest way to see the
+    idea without needing any extra libraries.
+    """
+    # Clean up punctuation and lowercase everything so "RAG?" matches "rag".
+    query_words = [w.strip("?.,!") for w in query.lower().split()]
+    # Drop stopwords so common filler words don't count as "matches".
+    query_words = [w for w in query_words if w and w not in STOPWORDS]
+
+    matches = []
     for doc in documents:
         doc_text = (doc["title"] + " " + doc["text"]).lower()
         match_count = sum(1 for word in query_words if word in doc_text)
 
+        # Only keep documents that actually share at least one keyword.
+        # Anything with zero matches is almost certainly irrelevant.
         if match_count > 0:
             matches.append({"doc": doc, "match_count": match_count})
 
@@ -81,8 +92,14 @@ def search_documents(query, documents):
 
 def rank_documents(matches):
     """
-    Ranks matched documents by how many query words they contain.
-    Higher match_count means it's more likely to be relevant.
+    STEP 2: RANKING.
+
+    Retrieval might find several documents that all matched *something*.
+    Ranking decides which ones are worth showing the AI (or the user) first.
+
+    Our ranking signal is simple: the more query words a document contains,
+    the more likely it is to actually be about what was asked. So we sort
+    by match_count, highest first.
     """
     ranked = sorted(matches, key=lambda m: m["match_count"], reverse=True)
     return [m["doc"] for m in ranked]
@@ -90,23 +107,30 @@ def rank_documents(matches):
 
 def generate_answer(query, top_documents):
     """
-    Mock "generation" step. A real RAG system would send the query and
-    top_documents to an LLM. Here we just stitch together a templated
-    answer using the best-matching document, so we can see the flow.
+    STEP 3: GENERATION.
+
+    This is the "G" in RAG. In a real system, this is where you'd hand the
+    query + the top retrieved documents to an LLM (like Claude) and ask it
+    to write a natural-language answer grounded in those documents.
+
+    We don't have an LLM here, so we fake it with a template: grab the
+    best-matching document and quote it. It's not smart, but it proves the
+    point -- the answer comes from *retrieved data*, not from memory.
     """
     if not top_documents:
+        # No documents matched at all. Be honest about it instead of
+        # making something up -- this is the whole reason RAG exists.
         return "I don't have any information about that in my documents."
 
     best_doc = top_documents[0]
-    return (
-        f"Based on \"{best_doc['title']}\": {best_doc['text']}"
-    )
+    return f"Based on \"{best_doc['title']}\": {best_doc['text']}"
 
 
 def rag_pipeline(query, documents):
     """
     Ties everything together: retrieve -> rank -> generate.
-    This is the whole RAG loop in three steps.
+    This is the whole RAG loop in three steps, run in order every time
+    a question comes in.
     """
     matches = search_documents(query, documents)
     ranked_docs = rank_documents(matches)
