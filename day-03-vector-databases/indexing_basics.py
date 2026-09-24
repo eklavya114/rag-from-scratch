@@ -61,7 +61,7 @@ class SimpleGraphIndex:
     checking every vector.
     """
 
-    def __init__(self, vectors, num_neighbors=10, seed=42):
+    def __init__(self, vectors, num_neighbors=20, seed=42):
         self.vectors = vectors
         self.num_neighbors = num_neighbors
         self.graph = self._build_graph(seed)
@@ -82,7 +82,11 @@ class SimpleGraphIndex:
             # a random sample of candidates rather than everyone -- a
             # simplification real HNSW avoids with smarter construction,
             # but it's good enough to demonstrate the search speedup.
-            sample_size = min(50, len(self.vectors))
+            # The sample needs to be reasonably large relative to
+            # num_neighbors, or most sampled candidates end up being
+            # picked as "neighbors" almost at random, making the graph
+            # a poor map of what's actually nearby.
+            sample_size = min(150, len(self.vectors))
             candidates = rng.sample(range(len(self.vectors)), sample_size)
 
             scored = [
@@ -95,50 +99,63 @@ class SimpleGraphIndex:
 
         return graph
 
-    def search(self, query, top_k=5, entry_points=3, max_steps=40):
+    def search(self, query, top_k=5, entry_points=None, max_steps=40, beam_width=None):
         """
-        Starts from a few random entry points, then repeatedly hops to
-        whichever unvisited neighbor is closest to the query -- a
-        "greedy walk" toward better matches. It stops once hopping stops
-        finding anything closer, or after max_steps, instead of
-        wandering through the whole graph. This is what keeps it fast:
-        it only ever looks at a small, targeted fraction of the vectors.
+        A simplified "beam search" over the neighbor graph: start from a
+        handful of random entry points, and at each step keep the best
+        `beam_width` candidates found so far, expanding their neighbors
+        and folding those in too. This is closer to how real HNSW search
+        works than a single greedy walk -- a pure greedy walk gets stuck
+        the moment it hits one local peak, even if a better one is one
+        more hop away through a different neighbor. Keeping a small beam
+        of candidates makes the search far more likely to actually reach
+        the good part of the graph, while still only touching a small
+        fraction of the total vectors.
         """
+        # Scale search effort with dataset size, the same way real vector
+        # databases let you tune a parameter like "ef_search" higher for
+        # bigger collections. A fixed, small beam that works fine on 1,000
+        # vectors explores too small a slice of a 100,000-vector graph to
+        # reliably find the true best matches -- this keeps the search
+        # honestly accurate as the dataset grows, not just fast.
+        if entry_points is None:
+            entry_points = max(10, len(self.vectors) // 500)
+        if beam_width is None:
+            beam_width = max(10, len(self.vectors) // 500)
+
         rng = random.Random()
         visited = set()
-        best = {}  # index -> similarity, for everything we've looked at
+        scored = {}  # index -> similarity, for everything we've looked at
 
         entry_ids = rng.sample(range(len(self.vectors)), min(entry_points, len(self.vectors)))
+        frontier = list(entry_ids)
 
-        for start in entry_ids:
-            current = start
-            for _ in range(max_steps):
-                if current in visited:
-                    break
-                visited.add(current)
-                best[current] = cosine_similarity(query, self.vectors[current])
+        for _ in range(max_steps):
+            if not frontier:
+                break
 
-                # Look at this vector's neighbors and greedily move to
-                # whichever one is closest to the query -- but only if
-                # it's actually better than where we are now. If none
-                # of the neighbors improve on the current vector, we've
-                # found a local peak and stop walking from this point.
-                unvisited_neighbors = [n for n in self.graph[current] if n not in visited]
-                if not unvisited_neighbors:
-                    break
+            # Score every candidate in the current frontier.
+            for idx in frontier:
+                if idx not in visited:
+                    visited.add(idx)
+                    scored[idx] = cosine_similarity(query, self.vectors[idx])
 
-                neighbor_scores = [
-                    (n, cosine_similarity(query, self.vectors[n]))
-                    for n in unvisited_neighbors
-                ]
-                best_neighbor, best_neighbor_score = max(neighbor_scores, key=lambda pair: pair[1])
+            # Keep only the best `beam_width` candidates seen so far --
+            # this is the "beam" -- and expand outward from just those,
+            # instead of from every vector we've ever touched.
+            beam = sorted(scored.items(), key=lambda pair: pair[1], reverse=True)[:beam_width]
 
-                if best_neighbor_score <= best[current]:
-                    break
+            next_frontier = []
+            for idx, _ in beam:
+                for neighbor in self.graph[idx]:
+                    if neighbor not in visited:
+                        next_frontier.append(neighbor)
 
-                current = best_neighbor
+            if not next_frontier:
+                break
+            frontier = next_frontier
 
-        ranked = sorted(best.items(), key=lambda pair: pair[1], reverse=True)
+        ranked = sorted(scored.items(), key=lambda pair: pair[1], reverse=True)
         return ranked[:top_k], len(visited)
 
 
