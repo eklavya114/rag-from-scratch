@@ -101,6 +101,12 @@ def main():
     compare_words("cat", "car")
     compare_words("dog", "truck")
     compare_words("kitten", "truck")
+    compare_words("puppy", "truck")
+
+    print(
+        "\nNotice 'cat' and 'car' share 2 of 3 letters, but score low. "
+        "Embeddings don't care about spelling -- only meaning."
+    )
 
 
 if __name__ == "__main__":

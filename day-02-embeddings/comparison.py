@@ -209,6 +209,12 @@ def main():
     # "RAG" directly.
     run_comparison("Why would old information be a problem?")
 
+    # Query 4: truly unrelated to anything in our documents. Neither
+    # method should find anything here. Embeddings help with different
+    # PHRASING of a known topic -- they're not magic, and they correctly
+    # say "no match" when a topic genuinely isn't covered.
+    run_comparison("What's the best pizza topping?")
+
     print("=" * 60)
     print(
         "\nWhat this shows: keyword search only finds documents that "
