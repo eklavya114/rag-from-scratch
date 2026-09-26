@@ -16,6 +16,14 @@ def dcg_at_k(ranked_ids, relevance_scores, k):
     how far down the ranking each one appears. A highly relevant result
     at position 1 contributes much more than the same result at
     position 10.
+
+    IMPORTANT: ranked_ids should contain each relevant ID at most once.
+    If a retrieval system returns multiple CHUNKS from the same document,
+    collapse them to unique document IDs before calling any function in
+    this file -- otherwise the same relevant document can be "found"
+    more than once, which can push these metrics above their intended
+    0-1 ceiling (2.0 for MAP was observed in practice; see
+    ranking_vs_no_ranking.py for the fix).
     """
     score = 0.0
     for i, doc_id in enumerate(ranked_ids[:k]):
