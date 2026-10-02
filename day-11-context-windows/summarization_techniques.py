@@ -27,9 +27,22 @@ def extractive_summarize(text, max_sentences=2):
     Guarantee: every word in the summary actually appeared in the
     source -- nothing can be fabricated, since nothing is rewritten.
     """
-    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s.strip()]
+    raw_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text.strip()) if s.strip()]
+    # Drop exact-duplicate sentences (e.g. from repeated source text) --
+    # otherwise the highest-scoring sentence can get picked more than
+    # once, which both wastes the summary's length budget and can crowd
+    # out other real content (a real bug caught while building
+    # multi_turn_strategy.py, where repeated sentences in a "turn" kept
+    # overwriting the running summary from prior turns).
+    seen = set()
+    sentences = []
+    for s in raw_sentences:
+        if s not in seen:
+            seen.add(s)
+            sentences.append(s)
+
     if len(sentences) <= max_sentences:
-        return text.strip()
+        return " ".join(sentences)
 
     all_words = re.findall(r'\w+', text.lower())
     word_freq = {}
