@@ -116,7 +116,22 @@ def main():
 
     print("\n" + "=" * 60)
     print(
-        "\nMulti-turn design notes:\n"
+        "\nWorth being honest about a real limitation visible above: look "
+        "closely and the running summary sometimes stays IDENTICAL across "
+        "several turns (e.g. after 'Vector databases' and 'Chunking'). "
+        "That's our extractive summarizer picking the same two highest-"
+        "scoring sentences from EARLIER turns again, because their words "
+        "happen to overlap with the combined text's overall vocabulary --"
+        " which means that turn's new content got silently dropped from "
+        "what's carried forward, not blended in like intended. A real "
+        "production system would need a genuinely abstractive summarizer "
+        "(an actual LLM call) to reliably fold NEW information into a "
+        "running summary; naive extractive re-scoring can get stuck "
+        "favoring old content. This is a good example of why 'maintain "
+        "context across turns' is a harder problem than it first looks.\n"
+    )
+    print(
+        "Multi-turn design notes:\n"
         "- What's carried forward between turns is a bounded SUMMARY, not "
         "the raw text of every prior turn -- otherwise turn 10 would need "
         "to fit everything from turns 1-9 PLUS its own new material, "
