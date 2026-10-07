@@ -52,9 +52,15 @@ def express_with_calibration(claim, confidence_score):
         # Lowercase the first word unless it looks like an acronym (all
         # caps, like "RAG") -- otherwise "RAG was..." incorrectly becomes
         # "rAG was...", which would just be a new, different-looking bug.
-        first_word, _, rest = claim.partition(" ")
+        core = claim.rstrip(".")
+        first_word, _, rest = core.partition(" ")
         lowered_first = first_word if first_word.isupper() else first_word[:1].lower() + first_word[1:]
-        return f"This isn't certain, but it's possible that {lowered_first} {rest}"
+        # Always end with a period -- the incoming claim may already have
+        # had its terminal punctuation stripped (by claim_extraction.py's
+        # extract_core_claim()), and this hedge is often concatenated
+        # directly against the next sentence in a longer answer, where a
+        # missing period would otherwise produce a run-on.
+        return f"This isn't certain, but it's possible that {lowered_first} {rest}.".replace("..", ".")
     # very_low
     return "I don't have enough grounded information to answer that confidently."
 
