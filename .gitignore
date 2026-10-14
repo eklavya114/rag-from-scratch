@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+day-15-agentic-ai/reasoning_trace.json
+day-15-agentic-ai/long_term_memory.json
