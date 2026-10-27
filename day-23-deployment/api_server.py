@@ -102,17 +102,35 @@ class RagRequestHandler(BaseHTTPRequestHandler):
         parse it as JSON. Returns (body_bytes, error_response) where
         error_response is None on success, or a (code, message) tuple if
         the body was too large or missing a valid Content-Length.
+
+        Every error path here closes the connection rather than trying
+        to keep it alive. On a keep-alive connection, once we cannot
+        trust exactly how many body bytes the client actually sent (a
+        missing, malformed, negative, or oversized Content-Length, or a
+        chunked Transfer-Encoding we do not support), there is no safe
+        way to know where this request ends and the next one begins. A
+        later read would risk reading leftover bytes from THIS request
+        and misinterpreting them as the START of the next one, a
+        request smuggling / desync risk. Closing the connection instead
+        is always safe: the client simply opens a new one.
         """
+        if self.headers.get("Transfer-Encoding") is not None:
+            self.close_connection = True
+            return None, (400, "Chunked or other Transfer-Encoding is not supported.")
+
         content_length = self.headers.get("Content-Length")
         if content_length is None:
+            self.close_connection = True
             return None, (400, "Missing Content-Length header.")
 
         try:
             length = int(content_length)
         except ValueError:
+            self.close_connection = True
             return None, (400, "Content-Length header must be an integer.")
 
         if length < 0:
+            self.close_connection = True
             return None, (400, "Content-Length header cannot be negative.")
 
         if length > MAX_BODY_SIZE_BYTES:
