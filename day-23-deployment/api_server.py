@@ -62,6 +62,11 @@ class RagRequestHandler(BaseHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        if self.close_connection:
+            # Tell the client explicitly, instead of just dropping the
+            # socket, so a well-behaved client does not try to reuse a
+            # connection we are about to close.
+            self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(body)
 
@@ -107,10 +112,18 @@ class RagRequestHandler(BaseHTTPRequestHandler):
         except ValueError:
             return None, (400, "Content-Length header must be an integer.")
 
+        if length < 0:
+            return None, (400, "Content-Length header cannot be negative.")
+
         if length > MAX_BODY_SIZE_BYTES:
-            # Read and discard so the connection isn't left in a broken
-            # state, then reject, rather than accepting an oversized body.
-            self.rfile.read(min(length, MAX_BODY_SIZE_BYTES))
+            # Do NOT read the oversized body: the client may still be
+            # sending more bytes than we are willing to buffer, and a
+            # partial read here would leave the socket holding leftover
+            # bytes that the NEXT request on this connection would
+            # wrongly be parsed as part of. Close the connection instead
+            # of trying to drain it, which is safe on both HTTP/1.0 and
+            # HTTP/1.1 keep-alive connections.
+            self.close_connection = True
             return None, (413, f"Request body of {length} bytes exceeds the {MAX_BODY_SIZE_BYTES}-byte limit.")
 
         return self.rfile.read(length), None
