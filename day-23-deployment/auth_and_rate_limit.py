@@ -84,10 +84,21 @@ class ProtectedRagRequestHandler(RagRequestHandler):
             configured_key = get_configured_api_key()
 
             if api_key != configured_key:
+                # Rejecting here, before _read_body() ever runs, means
+                # any body bytes the client already sent are still
+                # sitting unread on the socket. On a keep-alive HTTP/1.1
+                # connection, the NEXT request reusing this same
+                # connection would then start by reading those leftover
+                # bytes instead of a fresh request line, a desync. Force
+                # the connection closed so the client has to open a new
+                # one, the same safe choice api_server.py makes whenever
+                # it cannot be sure the body was fully consumed.
+                self.close_connection = True
                 self._send_error_json(401, "Missing or invalid X-API-Key header.")
                 return
 
             if not self.rate_limiter.allow(api_key):
+                self.close_connection = True
                 self._send_error_json(429, f"Rate limit exceeded: max {RATE_LIMIT_REQUESTS} requests per {RATE_LIMIT_WINDOW_SECONDS} seconds.")
                 return
 
@@ -108,13 +119,41 @@ def main():
     print(f"Configured API key (demo only): {get_configured_api_key()}\n")
 
     def send(headers=None):
+        # A fresh connection per call, instead of going through
+        # urllib.request's connection pool: a rapid burst of requests
+        # against a short-lived, in-process demo server on Windows can
+        # race with the server's own connection teardown when a
+        # keep-alive socket gets reused, and opening a new connection
+        # every time sidesteps that race entirely. A real client talking
+        # to a long-lived server would reasonably use keep-alive; this
+        # demo avoids it specifically because of how fast and bursty it
+        # is against a server that is itself starting and stopping
+        # within the same short script.
+        import http.client
+
+        all_headers = {**(headers or {}), "Content-Type": "application/json"}
         data = json.dumps({"query": "What is RAG?"}).encode("utf-8")
-        request = urllib.request.Request(f"{base_url}/query", data=data, method="POST", headers=headers or {})
-        try:
-            with urllib.request.urlopen(request, timeout=5) as response:
+
+        # A brand-new TCP connection can still occasionally be torn down
+        # by the OS during rapid connect/accept churn against a
+        # threaded server on Windows (WinError 10053), nothing to do
+        # with this server's own logic. A single retry on a pure
+        # connection-level failure is standard, defensive client
+        # behavior, the same reason client_example.py's ask() catches
+        # connection errors separately from HTTP errors.
+        last_error = None
+        for _ in range(3):
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            try:
+                connection.request("POST", "/query", body=data, headers=all_headers)
+                response = connection.getresponse()
+                response.read()
                 return response.status
-        except urllib.error.HTTPError as e:
-            return e.code
+            except (ConnectionAbortedError, ConnectionResetError, OSError) as e:
+                last_error = e
+            finally:
+                connection.close()
+        raise last_error
 
     try:
         print("--- No API key ---")
