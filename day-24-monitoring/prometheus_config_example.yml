@@ -1,0 +1,63 @@
+# This file is written for reading, it is not loaded or run in any test
+# in this project. It shows the shape of a real Prometheus scrape
+# config and alert rules, pointed at the /metrics/prometheus endpoint
+# metrics_endpoint.py builds in this folder.
+
+global:
+  scrape_interval: 15s   # how often Prometheus pulls metrics from each target
+  evaluation_interval: 15s   # how often alert rules below are checked
+
+scrape_configs:
+  - job_name: "rag-service"
+    static_configs:
+      - targets: ["localhost:8000"]
+    metrics_path: /metrics/prometheus
+
+# Alert rules, normally kept in a separate file and loaded via
+# rule_files: in the config above. Shown inline here for readability.
+# These mirror the same two checks alert_rules.py evaluates in Python:
+# an error rate threshold and a p95 latency threshold.
+
+# rule_files:
+#   - "alert_rules.yml"
+
+# --- alert_rules.yml would contain something like this ---
+#
+# groups:
+#   - name: rag_service_alerts
+#     rules:
+#       # Mirrors alert_rules.py's check_error_rate(): fires when the
+#       # ratio of error-status requests to all requests, over the last
+#       # 5 minutes, exceeds 5%, sustained for at least 2 minutes (the
+#       # "for" clause is Prometheus's own version of "do not fire on a
+#       # single noisy sample", the same idea as check_in_flight_sustained
+#       # requiring 3 consecutive readings in alert_rules.py).
+#       - alert: HighErrorRate
+#         expr: >
+#           sum(rate(requests_total{status="error"}[5m]))
+#           /
+#           sum(rate(requests_total[5m]))
+#           > 0.05
+#         for: 2m
+#         labels:
+#           severity: critical
+#         annotations:
+#           summary: "Error rate above 5 percent"
+#           description: "More than 5 percent of requests have failed over the last 5 minutes."
+#
+#       # Mirrors alert_rules.py's check_p95_latency(): fires when the
+#       # 95th percentile of request_latency_ms, over the last 5
+#       # minutes, exceeds 200 milliseconds, using the histogram_quantile
+#       # function Prometheus provides specifically for histogram
+#       # metrics like the one metrics_registry.py's Histogram class
+#       # renders.
+#       - alert: HighP95Latency
+#         expr: >
+#           histogram_quantile(0.95, rate(request_latency_ms_bucket[5m]))
+#           > 200
+#         for: 2m
+#         labels:
+#           severity: warning
+#         annotations:
+#           summary: "p95 latency above 200ms"
+#           description: "95 percent of requests are completing in under this time, but the 95th percentile itself has crossed 200ms."
