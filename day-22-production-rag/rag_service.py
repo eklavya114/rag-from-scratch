@@ -78,6 +78,8 @@ class RagService:
         return self.query_cache.get(cleaned_query)
 
     def _cache_set(self, cleaned_query, value):
+        if self.config.cache_size == 0:
+            return  # caching is disabled entirely, nothing is ever stored
         if cleaned_query not in self.query_cache and len(self.cache_order) >= self.config.cache_size:
             oldest = self.cache_order.pop(0)
             self.query_cache.pop(oldest, None)
