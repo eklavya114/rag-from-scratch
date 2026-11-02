@@ -24,7 +24,17 @@ from service_logging import QUERY_PREVIEW_LENGTH, logger  # Day 22, reusing the 
 
 from pii_redaction import redact_text
 
-SENSITIVE_HEADER_NAMES = {"authorization", "x-api-key"}
+# An ALLOWLIST, not a denylist: only header names explicitly listed
+# here ever have their VALUE logged. Every other header name, including
+# any not thought of in advance, gets its value redacted by default. A
+# denylist of "known-bad" header names is always incomplete, a new
+# sensitive header (a session token, a CSRF token, a cookie, anything
+# with "auth", "secret", "key", or "token" in the name) would leak in
+# full the moment it showed up and was not yet added to the list. An
+# allowlist fails SAFE instead: an unrecognized header is redacted, not
+# logged in full, which is the right default for anything security or
+# privacy related.
+SAFE_TO_LOG_HEADER_NAMES = {"content-type", "accept", "user-agent"}
 
 
 def safe_preview(text):
@@ -37,18 +47,20 @@ def safe_preview(text):
 
 def safe_headers_summary(headers):
     """
-    Returns a dict of header names only, NEVER their values, for any
-    header considered sensitive (Authorization, X-API-Key). Logging
-    header names is useful for debugging (did the client even send a
-    key). Logging header VALUES, even accidentally, is the single most
-    common way secrets leak through logs.
+    Returns a dict of every header NAME, but only logs a header's VALUE
+    when that name is on the explicit allowlist above. Logging header
+    names is useful for debugging (did the client even send a key,
+    which headers did they set). Logging header VALUES, even
+    accidentally, is one of the most common ways secrets leak through
+    logs, so values default to redacted unless a header is specifically
+    known to be safe.
     """
     summary = {}
     for name, value in headers.items():
-        if name.lower() in SENSITIVE_HEADER_NAMES:
-            summary[name] = "[REDACTED]"
-        else:
+        if name.lower() in SAFE_TO_LOG_HEADER_NAMES:
             summary[name] = value
+        else:
+            summary[name] = "[REDACTED]"
     return summary
 
 
