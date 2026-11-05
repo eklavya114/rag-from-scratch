@@ -45,6 +45,16 @@ def text_to_domain_embedding(text, concepts):
     return [float(sum(1 for word in words if word in concept_words)) for concept_words in concepts.values()]
 
 
+STOPWORDS = {
+    "a", "an", "the", "is", "are", "to", "for", "of", "and", "or", "if", "on", "with", "within",
+    "at", "this", "that", "your", "you", "can", "will", "be", "it", "not", "from", "their", "into",
+    "after", "before", "than", "as", "has", "have", "but", "when", "may", "how", "out", "any", "one",
+    "first", "take", "what", "more", "while", "via", "never", "cannot", "must", "both", "its", "so",
+    "does", "do", "no", "yet", "each", "get", "gets", "there", "then", "about", "other", "which",
+    "these", "those", "also", "such", "shown", "shows", "show", "instead", "page", "support",
+}
+
+
 def find_missing_domain_terms(train_documents, train_feedback_queries, baseline_concepts):
     """
     Finds real words that show up often in TRAIN documents genuinely
@@ -58,15 +68,6 @@ def find_missing_domain_terms(train_documents, train_feedback_queries, baseline_
     for concept_words in baseline_concepts.values():
         all_known_words.update(concept_words)
 
-    stopwords = {
-        "a", "an", "the", "is", "are", "to", "for", "of", "and", "or", "if", "on", "with", "within",
-        "at", "this", "that", "your", "you", "can", "will", "be", "it", "not", "from", "their", "into",
-        "after", "before", "than", "as", "has", "have", "but", "when", "may", "how", "out", "any", "one",
-        "first", "take", "what", "more", "while", "via", "never", "cannot", "must", "both", "its", "so",
-        "does", "do", "no", "yet", "each", "get", "gets", "there", "then", "about", "other", "which",
-        "these", "those", "also", "such", "shown", "shows", "show", "instead", "page", "support",
-    }
-
     candidate_counts = {}
     for item in train_feedback_queries:
         doc = next(d for d in train_documents if d["id"] == item["document_id"])
@@ -74,7 +75,7 @@ def find_missing_domain_terms(train_documents, train_feedback_queries, baseline_
             continue  # only learn from examples marked genuinely helpful
         for word in _words(doc["title"] + " " + doc["text"]):
             word = word.strip("()")
-            if word and word not in all_known_words and word not in stopwords and len(word) > 2 and not word.isdigit():
+            if word and word not in all_known_words and word not in STOPWORDS and len(word) > 2 and not word.isdigit():
                 candidate_counts[word] = candidate_counts.get(word, 0) + 1
 
     # Keep terms that showed up at least twice, a single mention is too
@@ -82,10 +83,35 @@ def find_missing_domain_terms(train_documents, train_feedback_queries, baseline_
     return {word: count for word, count in candidate_counts.items() if count >= 2}
 
 
-def build_adapted_vocabulary(missing_terms, baseline_concepts):
-    """Adds the discovered missing terms as a new 'domain_specific' concept group, leaving every existing concept untouched, an additive expansion rather than a rewrite."""
+def build_per_document_concepts(train_documents, missing_terms):
+    """
+    Groups the discovered missing terms into ONE CONCEPT PER DOCUMENT
+    (its title words plus whichever missing terms actually appear in it),
+    rather than dumping every discovered word into a single shared
+    bucket. A single shared "domain_specific" bucket would make every
+    document's embedding light up on the exact same one dimension
+    whenever ANY domain term appeared anywhere in it, making documents
+    indistinguishable from each other on that signal. One concept per
+    document keeps the new terms doing what concepts are supposed to
+    do: distinguishing WHICH document a query is actually about.
+    """
+    concepts = {}
+    for doc in train_documents:
+        doc_words = _words(doc["title"] + " " + doc["text"])
+        doc_specific_terms = sorted(word for word in doc_words if word in missing_terms)
+        if doc_specific_terms:
+            concept_name = f"doc_{doc['id']}_terms"
+            concepts[concept_name] = doc_specific_terms
+    return concepts
+
+
+def build_adapted_vocabulary(missing_terms, baseline_concepts, train_documents=None):
+    """Adds the discovered missing terms as NEW per-document concept groups, leaving every existing concept untouched, an additive expansion rather than a rewrite."""
     adapted = {name: list(words) for name, words in baseline_concepts.items()}
-    adapted["domain_specific"] = sorted(missing_terms.keys())
+    if train_documents is not None:
+        adapted.update(build_per_document_concepts(train_documents, missing_terms))
+    else:
+        adapted["domain_specific"] = sorted(missing_terms.keys())
     return adapted
 
 
@@ -113,7 +139,7 @@ def main():
     for term, count in sorted(missing_terms.items(), key=lambda pair: -pair[1])[:10]:
         print(f"  {term!r} (seen {count} times)")
 
-    adapted = build_adapted_vocabulary(missing_terms, BASELINE_CONCEPTS)
+    adapted = build_adapted_vocabulary(missing_terms, BASELINE_CONCEPTS, train_documents=DOCUMENTS)
     adapted_size = sum(len(words) for words in adapted.values())
     print(f"\nAdapted vocabulary: {len(adapted)} concepts, {adapted_size} total words "
           f"(+{adapted_size - baseline_size} words added).\n")
