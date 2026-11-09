@@ -1,0 +1,8 @@
+# This project needs only Python 3.10 or newer, plus Jupyter if you want
+# to run notebook.ipynb (pip install jupyter, or jupyter nbconvert).
+#
+# No third-party packages are required to run main.py, tests.py,
+# server_demo.py, or any other script in this folder, or in any of the
+# other 28 day folders in this project. Every day was built deliberately
+# using only the Python standard library, so there is nothing to list
+# here beyond Python itself.
