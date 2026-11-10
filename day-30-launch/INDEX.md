@@ -31,6 +31,6 @@
 | 27 | day-27-security-privacy | Day 27: Security, Privacy, and Compliance | 9 | 1 |
 | 28 | day-28-domain-adaptation | Day 28: Fine-Tuning and Domain Adaptation | 8 | 1 |
 | 29 | day-29-complete-system | Day 29: The Complete Project | 9 | 1 |
-| 30 | day-30-launch | Day 30: Launch | 2 | 0 |
+| 30 | day-30-launch | Day 30: Launch | 2 | 1 |
 
-Total: 30 days, 217 Python files, 28 notebooks.
+Total: 30 days, 217 Python files, 29 notebooks.
