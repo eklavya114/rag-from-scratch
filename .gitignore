@@ -1,4 +1,15 @@
 __pycache__/
 *.pyc
+.ipynb_checkpoints/
+.env
+*.log
 day-15-agentic-ai/reasoning_trace.json
 day-15-agentic-ai/long_term_memory.json
+
+# Temp JSON files some demos write to the system temp directory during a
+# run and clean up afterward; listed here in case one is ever created
+# inside the repo instead.
+*.tmp.json
+
+.DS_Store
+Thumbs.db
