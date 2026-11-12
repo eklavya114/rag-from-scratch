@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG From Scratch</title>
+<meta name="description" content="A complete RAG system built from scratch over 30 days, using only the Python standard library.">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --bg-soft: #111113;
+    --border: #232326;
+    --text: #f5f5f7;
+    --text-dim: #9a9aa2;
+    --text-dimmer: #6b6b73;
+    --accent: #6366f1;
+    --accent-soft: rgba(99, 102, 241, 0.12);
+    --mono: "SFMono-Regular", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ---------- NAV ---------- */
+
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid transparent;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  nav.scrolled {
+    background: rgba(10, 10, 10, 0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: -0.02em;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .nav-link:hover { color: var(--text); background: var(--bg-soft); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .btn-primary:hover { transform: translateY(-1px); background: #5457e5; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+  }
+
+  .btn-ghost:hover { border-color: #3a3a40; background: var(--bg-soft); }
+
+  .hamburger {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+  }
+
+  .hamburger span {
+    width: 20px;
+    height: 2px;
+    background: var(--text);
+    display: block;
+  }
+
+  /* ---------- HERO ---------- */
+
+  header.hero {
+    padding: 120px 0 90px;
+    text-align: center;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 5.5vw, 3.8rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin: 0 0 20px;
+    line-height: 1.1;
+  }
+
+  .sub {
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    color: var(--text-dim);
+    max-width: 620px;
+    margin: 0 auto 36px;
+  }
+
+  .hero-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 72px;
+  }
+
+  .stat-badge {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    padding: 8px 16px;
+    border-radius: 999px;
+  }
+
+  .stat-badge b { color: var(--text); font-weight: 600; }
+
+  /* mini pipeline animation */
+
+  .mini-pipe {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  .mini-node {
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    color: var(--text-dim);
+    padding: 10px 16px;
+    border-radius: 8px;
+    position: relative;
+    animation: pulse 3.6s ease-in-out infinite;
+  }
+
+  .mini-node:nth-child(2) { animation-delay: 0.45s; }
+  .mini-node:nth-child(4) { animation-delay: 0.9s; }
+  .mini-node:nth-child(6) { animation-delay: 1.35s; }
+  .mini-node:nth-child(8) { animation-delay: 1.8s; }
+
+  @keyframes pulse {
+    0%, 100% { border-color: var(--border); color: var(--text-dim); }
+    20% { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px rgba(99,102,241,0.3); }
+  }
+
+  .mini-arrow { color: var(--text-dimmer); }
+
+  /* ---------- SECTION SHELL ---------- */
+
+  section { padding: 96px 0; }
+
+  section.alt { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+  .section-head { margin-bottom: 48px; text-align: center; }
+
+  .section-tag {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  h2 {
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+  }
+
+  .section-desc {
+    color: var(--text-dim);
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  .fade-up {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .fade-up.in-view { opacity: 1; transform: translateY(0); }
+
+  /* ---------- CARDS (section 3) ---------- */
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .card {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .card:hover { border-color: #34343a; transform: translateY(-2px); }
+
+  .card-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-soft);
+    border-radius: 8px;
+    margin-bottom: 18px;
+    color: var(--accent);
+  }
+
+  .card h3 { margin: 0 0 10px; font-size: 1.05rem; }
+
+  .card p { margin: 0; color: var(--text-dim); font-size: 0.92rem; }
+
+  /* ---------- ARCHITECTURE (section 4) ---------- */
+
+  .pipeline-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .pipe-box {
+    flex: 1 1 0;
+    min-width: 128px;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 14px;
+    text-align: center;
+  }
+
+  .pipe-box .label {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .pipe-box .desc {
+    font-size: 11.5px;
+    color: var(--text-dimmer);
+    line-height: 1.4;
+  }
+
+  .pipe-arrow {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    color: var(--text-dimmer);
+  }
+
+  .support-row {
+    margin-top: 28px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .support-box {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .support-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dimmer);
+    margin-bottom: 16px;
+    text-align: center;
+    font-family: var(--mono);
+  }
+
+  /* ---------- 30 DAYS (section 5) ---------- */
+
+  .week-row {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 24px;
+    padding: 28px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+
+  .week-row:last-child { border-bottom: none; }
+
+  .week-label {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .week-label .week-title {
+    display: block;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  .day-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .day-card {
+    position: relative;
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    border-radius: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .day-card:hover, .day-card.active { border-color: var(--accent); background: var(--accent-soft); }
+
+  .day-card .num {
+    font-family: var(--mono);
+    color: var(--accent);
+    font-size: 11px;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .day-tip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 20;
+    width: 220px;
+    background: #17171a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+
+  .day-card.active .day-tip { display: block; }
+
+  /* ---------- OUTCOMES (section 6) ---------- */
+
+  .outcome-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 32px;
+  }
+
+  .outcome-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+  }
+
+  .outcome-item svg { flex: 0 0 auto; margin-top: 3px; color: var(--accent); }
+
+  /* ---------- LIMITS (section 7) ---------- */
+
+  .limits-box {
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: linear-gradient(180deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02));
+    border-radius: var(--radius);
+    padding: 36px;
+  }
+
+  .limits-box .limits-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  .limits-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .limit-item {
+    display: flex;
+    gap: 10px;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+  }
+
+  .limit-item b { color: var(--text); }
+
+  /* ---------- QUICK START (section 8) ---------- */
+
+  .steps { display: flex; flex-direction: column; gap: 20px; }
+
+  .step {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 18px;
+  }
+
+  .step-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .code-block {
+    position: relative;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 50px 14px 16px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: #d6d6dc;
+    overflow-x: auto;
+  }
+
+  .copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 5px 9px;
+    font-size: 11px;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .copy-btn:hover { color: var(--text); border-color: #3a3a40; }
+
+  .copy-btn.copied { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- WEEK LEARNING CARDS (section 9) ---------- */
+
+  .learn-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .learn-card {
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+
+  .learn-card .wk {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+
+  .learn-card h4 { margin: 0 0 14px; font-size: 1rem; }
+
+  .learn-card ul { margin: 0; padding-left: 18px; color: var(--text-dim); font-size: 0.85rem; }
+
+  .learn-card li { margin-bottom: 6px; }
+
+  /* ---------- FOOTER ---------- */
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 48px 0;
+  }
+
+  .footer-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 32px;
+  }
+
+  .footer-col { flex: 1 1 200px; }
+
+  .footer-col.center { text-align: center; }
+
+  .footer-col.right { text-align: right; }
+
+  .footer-links { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+
+  .footer-links a { color: var(--text-dim); font-size: 13px; }
+
+  .footer-links a:hover { color: var(--text); }
+
+  footer .muted { color: var(--text-dimmer); font-size: 13px; }
+
+  /* ---------- RESPONSIVE ---------- */
+
+  @media (max-width: 860px) {
+    .card-grid { grid-template-columns: 1fr; }
+    .outcome-grid { grid-template-columns: 1fr; }
+    .limits-grid { grid-template-columns: 1fr; }
+    .learn-grid { grid-template-columns: 1fr 1fr; }
+    .support-row { grid-template-columns: 1fr 1fr; }
+    .week-row { grid-template-columns: 1fr; }
+    .footer-inner { flex-direction: column; }
+    .footer-col.center, .footer-col.right { text-align: left; }
+  }
+
+  @media (max-width: 600px) {
+    .nav-right .btn-ghost-text { display: none; }
+    .learn-grid { grid-template-columns: 1fr; }
+    .pipe-box { min-width: 100px; }
+    .hamburger { display: flex; }
+  }
+</style>
+</head>
+<body>
+
+<nav id="nav">
+  <div class="wrap nav-inner">
+    <div class="logo">rag-from-scratch</div>
+    <div class="nav-right">
+      <a class="nav-link" href="https://github.com/eklavya114/rag-from-scratch" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path></svg>
+        GitHub
+      </a>
+      <button class="btn btn-primary" onclick="document.getElementById('quickstart').scrollIntoView()">Start Learning</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Zero dependencies. Zero API keys.</div>
+    <h1>Build a RAG System.<br>From Zero. In 30 Days.</h1>
+    <p class="sub">No LangChain. No API keys. No shortcuts. Just Python and clear thinking.</p>
+    <div class="hero-actions">
+      <a class="btn btn-ghost" href="https://github.com/eklavya114/rag-from-scratch" target="_blank" rel="noopener">View on GitHub</a>
+      <a class="btn btn-primary" href="https://github.com/eklavya114/rag-from-scratch/tree/main/day-01-rag-basics" target="_blank" rel="noopener">Start Day 1</a>
+    </div>
+    <div class="stat-row">
+      <div class="stat-badge"><b>30</b> Days</div>
+      <div class="stat-badge"><b>Zero</b> Dependencies</div>
+      <div class="stat-badge"><b>29</b> Components</div>
+    </div>
+    <div class="mini-pipe">
+      <div class="mini-node">Query</div>
+      <div class="mini-arrow">&rarr;</div>
+      <div class="mini-node">Retrieval</div>
+      <div class="mini-arrow">&rarr;</div>
+      <div class="mini-node">Ranking</div>
+      <div class="mini-arrow">&rarr;</div>
+      <div class="mini-node">Generation</div>
+      <div class="mini-arrow">&rarr;</div>
+      <div class="mini-node">Answer</div>
+    </div>
+  </div>
+</header>
+
+<section id="what-this-is">
+  <div class="wrap">
+    <div class="section-head fade-up">
+      <div class="section-tag">What this is</div>
+      <h2>Three ways to describe the same project</h2>
+      <p class="section-desc">Pick the one that matches what you are looking for.</p>
+    </div>
+    <div class="card-grid">
+      <div class="card fade-up">
+        <div class="card-icon"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="3"></circle><circle cx="3" cy="3" r="1.4"></circle><circle cx="15" cy="3" r="1.4"></circle><circle cx="3" cy="15" r="1.4"></circle><circle cx="15" cy="15" r="1.4"></circle><path d="M6.8 6.8 4 4M11.2 6.8 14 4M6.8 11.2 4 14M11.2 11.2 14 14"></path></svg></div>
+        <h3>A complete RAG pipeline</h3>
+        <p>Chunking, embeddings, a vector store, retrieval, ranking, and generation, each one built and tested before the next is layered on top.</p>
+      </div>
+      <div class="card fade-up">
+        <div class="card-icon"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 2 15 5v4c0 4-2.7 6.6-6 8-3.3-1.4-6-4-6-8V5z"></path></svg></div>
+        <h3>A production hardening course</h3>
+        <p>Caching, validation, access control, monitoring, A/B testing, and prompt injection checks, the parts a demo skips and a real service cannot.</p>
+      </div>
+      <div class="card fade-up">
+        <div class="card-icon"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 14 7 6l3 5 2-3 3 6"></path><path d="M3 15h12"></path></svg></div>
+        <h3>An honest learning project</h3>
+        <p>Toy embeddings, a toy vector store, no real LLM. Stated plainly, so every other claim in this project can actually be trusted.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="architecture">
+  <div class="wrap">
+    <div class="section-head fade-up">
+      <div class="section-tag">Architecture</div>
+      <h2>One request, start to finish</h2>
+      <p class="section-desc">Every stage is a real, separate piece of code. Nothing here is a diagram of a plan, it is a diagram of what actually runs.</p>
+    </div>
+
+    <div class="pipeline-row fade-up">
+      <div class="pipe-box"><div class="label">User Query</div><div class="desc">a raw question, as typed</div></div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-box"><div class="label">Validation</div><div class="desc">reject empty, oversized, or malformed input</div></div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-box"><div class="label">Cache</div><div class="desc">skip repeated work on a repeated question</div></div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-box"><div class="label">Retrieval</div><div class="desc">find candidate chunks by similarity</div></div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-box"><div class="label">Ranking</div><div class="desc">order by similarity, recency, and quality</div></div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-box"><div class="label">Generation</div><div class="desc">turn ranked chunks into a sourced answer</div></div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-box"><div class="label">Response</div><div class="desc">answer, sources, status, timings</div></div>
+    </div>
+
+    <div class="fade-up">
+      <div class="support-label" style="margin-top:40px;">Supporting systems</div>
+      <div class="support-row">
+        <div class="support-box">Monitoring</div>
+        <div class="support-box">Security</div>
+        <div class="support-box">Evaluation</div>
+        <div class="support-box">A/B Testing</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="days">
+  <div class="wrap">
+    <div class="section-head fade-up">
+      <div class="section-tag">The 30 days</div>
+      <h2>One topic a day, nothing skipped</h2>
+      <p class="section-desc">Click a day to read what it covers.</p>
+    </div>
+
+    <div class="fade-up">
+      <div class="week-row">
+        <div class="week-label">Week 1<span class="week-title">Foundations</span></div>
+        <div class="day-cards" data-week="1"></div>
+      </div>
+      <div class="week-row">
+        <div class="week-label">Week 2<span class="week-title">Production Quality</span></div>
+        <div class="day-cards" data-week="2"></div>
+      </div>
+      <div class="week-row">
+        <div class="week-label">Week 3<span class="week-title">Agents</span></div>
+        <div class="day-cards" data-week="3"></div>
+      </div>
+      <div class="week-row">
+        <div class="week-label">Week 4<span class="week-title">Shipping</span></div>
+        <div class="day-cards" data-week="4"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="outcomes">
+  <div class="wrap">
+    <div class="section-head fade-up">
+      <div class="section-tag">What you will learn</div>
+      <h2>Outcomes, not topics</h2>
+    </div>
+    <div class="outcome-grid fade-up">
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Measure retrieval quality before trusting it</div>
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Build an agent that plans, acts, and recovers from failure</div>
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Tell a real difference from random noise with a significance test</div>
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Catch a prompt injection attempt before it reaches a model</div>
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Serve a RAG pipeline over real HTTP, with real status codes</div>
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Redact personal data before it ever reaches a log file</div>
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Spot overfitting by comparing train and held out scores</div>
+      <div class="outcome-item"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6 11.5 13 4.5"></path></svg>Wire 29 separate pieces into one tested, runnable system</div>
+    </div>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="wrap fade-up">
+    <div class="limits-box">
+      <div class="limits-head">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 6v4"></path><circle cx="9" cy="12.3" r="0.4" fill="currentColor"></circle><path d="M9 2 16 15H2z"></path></svg>
+        Honest limits
+      </div>
+      <div class="limits-grid">
+        <div class="limit-item"><b>Toy embeddings.</b>&nbsp;A small, hand built concept vocabulary, not a trained model.</div>
+        <div class="limit-item"><b>No real LLM.</b>&nbsp;Answers come from templates filling in real retrieved text.</div>
+        <div class="limit-item"><b>No real vector database.</b>&nbsp;A Python list scored with cosine similarity, not an indexed store.</div>
+        <div class="limit-item"><b>Not a security audit.</b>&nbsp;The security work here is real teaching material, not a certified review.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="quickstart">
+  <div class="wrap">
+    <div class="section-head fade-up">
+      <div class="section-tag">Quick start</div>
+      <h2>Running in under a minute</h2>
+      <p class="section-desc">Python 3.10 or newer. Nothing else.</p>
+    </div>
+
+    <div class="steps fade-up">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <p style="margin:0 0 10px; color: var(--text-dim); font-size:0.92rem;">Clone the repository.</p>
+          <div class="code-block" data-code="git clone https://github.com/eklavya114/rag-from-scratch"><span>git clone https://github.com/eklavya114/rag-from-scratch</span><button class="copy-btn">Copy</button></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <p style="margin:0 0 10px; color: var(--text-dim); font-size:0.92rem;">Enter the complete system and run it.</p>
+          <div class="code-block" data-code="cd rag-from-scratch/day-29-complete-system && python main.py"><span>cd rag-from-scratch/day-29-complete-system &amp;&amp; python main.py</span><button class="copy-btn">Copy</button></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <p style="margin:0 0 10px; color: var(--text-dim); font-size:0.92rem;">Run the test suite.</p>
+          <div class="code-block" data-code="python tests.py"><span>python tests.py</span><button class="copy-btn">Copy</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="weeks">
+  <div class="wrap">
+    <div class="section-head fade-up">
+      <div class="section-tag">By week</div>
+      <h2>What each week leaves you able to do</h2>
+    </div>
+    <div class="learn-grid fade-up">
+      <div class="learn-card">
+        <div class="wk">Week 1</div>
+        <h4>Foundations</h4>
+        <ul>
+          <li>Explain retrieval, ranking, and generation separately</li>
+          <li>Turn text into embeddings and search them</li>
+          <li>Generate a sourced answer from retrieved chunks</li>
+        </ul>
+      </div>
+      <div class="learn-card">
+        <div class="wk">Week 2</div>
+        <h4>Production Quality</h4>
+        <ul>
+          <li>Score retrieval with precision, recall, and NDCG</li>
+          <li>Scale a pipeline from 100 to 100,000 documents</li>
+          <li>Cache results and measure the real speedup</li>
+        </ul>
+      </div>
+      <div class="learn-card">
+        <div class="wk">Week 3</div>
+        <h4>Agents</h4>
+        <ul>
+          <li>Build an agent loop with tools and memory</li>
+          <li>Make reasoning explicit with the ReAct pattern</li>
+          <li>Plan multiple steps ahead and replan on failure</li>
+        </ul>
+      </div>
+      <div class="learn-card">
+        <div class="wk">Week 4</div>
+        <h4>Shipping</h4>
+        <ul>
+          <li>Serve a RAG service over a real HTTP API</li>
+          <li>Run an A/B test and check for statistical significance</li>
+          <li>Ship one tested, documented, complete system</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap footer-inner">
+    <div class="footer-col">
+      <div class="logo">rag-from-scratch</div>
+      <p class="muted" style="margin-top:8px;">A complete RAG system, built from scratch, over 30 days.</p>
+    </div>
+    <div class="footer-col center">
+      <div class="footer-links">
+        <a href="https://github.com/eklavya114/rag-from-scratch" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/eklavya114/rag-from-scratch/tree/main/day-01-rag-basics" target="_blank" rel="noopener">Day 1</a>
+        <a href="https://github.com/eklavya114/rag-from-scratch/tree/main/day-29-complete-system" target="_blank" rel="noopener">Day 29</a>
+        <a href="https://github.com/eklavya114/rag-from-scratch/blob/main/day-30-launch/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+      </div>
+    </div>
+    <div class="footer-col right">
+      <p class="muted">MIT License</p>
+      <p class="muted">Copyright 2026 eklavya114</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // Nav background on scroll
+  var nav = document.getElementById("nav");
+  function onScroll() {
+    if (window.scrollY > 8) nav.classList.add("scrolled");
+    else nav.classList.remove("scrolled");
+  }
+  document.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+
+  // Fade up on scroll
+  var targets = document.querySelectorAll(".fade-up");
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in-view");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    targets.forEach(function (el) { io.observe(el); });
+  } else {
+    targets.forEach(function (el) { el.classList.add("in-view"); });
+  }
+
+  // Copy buttons
+  document.querySelectorAll(".code-block").forEach(function (block) {
+    var btn = block.querySelector(".copy-btn");
+    var code = block.getAttribute("data-code");
+    btn.addEventListener("click", function () {
+      function done() {
+        var original = btn.textContent;
+        btn.textContent = "Copied";
+        btn.classList.add("copied");
+        setTimeout(function () {
+          btn.textContent = original;
+          btn.classList.remove("copied");
+        }, 1600);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(done).catch(function () { fallbackCopy(code, done); });
+      } else {
+        fallbackCopy(code, done);
+      }
+    });
+  });
+
+  function fallbackCopy(text, done) {
+    var textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(textarea);
+    done();
+  }
+
+  // Day data: title and one honest sentence per day, matching the real course.
+  var DAYS = {
+    1: ["RAG Basics", "Build the first, simplest possible RAG system using keyword search alone."],
+    2: ["Embeddings", "Turn text into numbers and compare meaning instead of exact words."],
+    3: ["Vector Store", "Store embeddings and search them by similarity instead of scanning by hand."],
+    4: ["Chunking", "Split documents into pieces small enough to retrieve usefully."],
+    5: ["Retrieval", "Tie chunking, embeddings, and the vector store into one working retriever."],
+    6: ["Ranking", "Reorder retrieved chunks using similarity, recency, and quality together."],
+    7: ["Generation", "Turn ranked chunks into a readable answer with real sources attached."],
+    8: ["Eval Metrics", "Score retrieval quality with precision, recall, NDCG, and MRR."],
+    9: ["Embedding Models", "Compare real embedding models and know when fine tuning is worth it."],
+    10: ["Scaling", "Benchmark the pipeline from 100 documents up to 100,000."],
+    11: ["Context Budget", "Manage how much retrieved text actually fits in a context window."],
+    12: ["Query Rewriting", "Rewrite and expand queries to handle ambiguity and decomposition."],
+    13: ["Hallucinations", "Measure factuality honestly instead of guessing if an answer is grounded."],
+    14: ["Caching", "Add multi level caching and measure the real speedup it buys."],
+    15: ["Agentic AI", "Build the first agent that can think, decide, and act."],
+    16: ["Custom Tools", "Design tools an agent can call safely and predictably."],
+    17: ["ReAct Pattern", "Make an agent's reasoning explicit as readable thought and action text."],
+    18: ["Agent Memory", "Give an agent short term, long term, and episodic memory."],
+    19: ["Function Calling", "Replace free text reasoning with structured, validated tool calls."],
+    20: ["Planning", "Build an agent that plans several steps ahead and replans on failure."],
+    21: ["Agent Eval", "Measure agent performance with a real, repeatable evaluation harness."],
+    22: ["Production RAG", "Wrap the pipeline in validation, caching, and a production service shape."],
+    23: ["Deployment", "Serve the service over real HTTP using only the standard library."],
+    24: ["Monitoring", "Add metrics, alert rules, and a dashboard for real observability."],
+    25: ["Edge Cases", "Find and fix weird inputs, slow dependencies, and partial failures."],
+    26: ["A/B Testing", "Compare two versions fairly and check if the difference is real."],
+    27: ["Security", "Add prompt injection checks, PII redaction, and access control."],
+    28: ["Domain Adapt", "Adapt the toy system to a real domain and measure it honestly."],
+    29: ["Complete System", "Connect every piece from Day 1 to 28 into one tested, runnable project."],
+    30: ["Launch", "Verify the whole project with a real, running release checklist."]
+  };
+
+  var WEEKS = {
+    1: [1,2,3,4,5,6,7],
+    2: [8,9,10,11,12,13,14],
+    3: [15,16,17,18,19,20,21],
+    4: [22,23,24,25,26,27,28,29,30]
+  };
+
+  Object.keys(WEEKS).forEach(function (weekNum) {
+    var container = document.querySelector('.day-cards[data-week="' + weekNum + '"]');
+    WEEKS[weekNum].forEach(function (dayNum) {
+      var info = DAYS[dayNum];
+      var card = document.createElement("div");
+      card.className = "day-card";
+      card.innerHTML =
+        '<span class="num">Day ' + dayNum + '</span>' + info[0] +
+        '<div class="day-tip">' + info[1] + '</div>';
+      card.addEventListener("click", function (e) {
+        var wasActive = card.classList.contains("active");
+        document.querySelectorAll(".day-card.active").forEach(function (c) { c.classList.remove("active"); });
+        if (!wasActive) card.classList.add("active");
+        e.stopPropagation();
+      });
+      container.appendChild(card);
+    });
+  });
+
+  document.addEventListener("click", function () {
+    document.querySelectorAll(".day-card.active").forEach(function (c) { c.classList.remove("active"); });
+  });
+})();
+</script>
+
+</body>
+</html>
